@@ -1,0 +1,18 @@
+services:
+  robot-monitor:
+    build: .
+    container_name: robot-monitor
+    restart: unless-stopped
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./data:/app/data
+      - ./config.json:/app/config.json
+    environment:
+      - TZ=Asia/Shanghai
+      # 阿里云短信配置（可选，也可在 config.json 中配置）
+      - ALIYUN_ACCESS_KEY_ID=${ALIYUN_ACCESS_KEY_ID:-}
+      - ALIYUN_ACCESS_KEY_SECRET=${ALIYUN_ACCESS_KEY_SECRET:-}
+      - ALIYUN_SMS_SIGN_NAME=${ALIYUN_SMS_SIGN_NAME:-机器人监控}
+      - ALIYUN_SMS_TEMPLATE_CODE=${ALIYUN_SMS_TEMPLATE_CODE:-SMS_XXXXXXX}
+      - ALIYUN_SMS_PHONE_NUMBERS=${ALIYUN_SMS_PHONE_NUMBERS:-}

@@ -1,0 +1,43 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+
+# Virtual Environment
+.venv/
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Data (contains runtime data)
+data/
+
+# Config (contains sensitive API keys)
+config.json
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Streamlit
+.streamlit/
+
+# Logs
+*.log
