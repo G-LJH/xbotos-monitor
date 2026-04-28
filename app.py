@@ -1,4 +1,5 @@
 """机器人监控系统 — Streamlit 主入口"""
+import os
 import streamlit as st
 import time
 import src.data as data
@@ -11,6 +12,9 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
+if os.getenv("MONITOR_AUTO_START", "").lower() in {"1", "true", "yes", "on"} and not is_running():
+    start_monitor()
 
 
 # ---- 侧边栏 ----

@@ -7,9 +7,11 @@ services:
       - "8501:8501"
     volumes:
       - ./data:/app/data
-      - ./config.json:/app/config.json
+      - ./logs:/app/logs
     environment:
       - TZ=Asia/Shanghai
+      - MONITOR_AUTO_START=${MONITOR_AUTO_START:-true}
+      - CONFIG_PATH=/app/data/config.json
       # 阿里云短信配置（可选，也可在 config.json 中配置）
       - ALIYUN_ACCESS_KEY_ID=${ALIYUN_ACCESS_KEY_ID:-}
       - ALIYUN_ACCESS_KEY_SECRET=${ALIYUN_ACCESS_KEY_SECRET:-}

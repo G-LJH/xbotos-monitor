@@ -1,7 +1,6 @@
 """全局配置管理：从 config.json + 环境变量加载"""
 import json
 import os
-from pathlib import Path
 
 DEFAULT_CONFIG = {
     "check_interval": 60,
@@ -12,10 +11,10 @@ DEFAULT_CONFIG = {
     "aliyun_sms": {
         "access_key_id": "",
         "access_key_secret": "",
-        "sign_name": "银川慧疗互联网医院",
-        "template_code": "SMS_505135345",
+        "sign_name": "机器人监控",
+        "template_code": "SMS_XXXXXXX",
         "region_id": "cn-qingdao",
-        "phone_numbers": ["18045034451"]
+        "phone_numbers": []
     }
 }
 
@@ -29,12 +28,15 @@ def load_config(config_path: str = None) -> dict:
         return _config_cache
 
     if config_path is None:
-        config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "config.json")
+        config_path = _default_config_path()
 
     config = dict(DEFAULT_CONFIG)
 
-    if os.path.exists(config_path):
-        with open(config_path, "r", encoding="utf-8") as f:
+    legacy_config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "config.json")
+    load_path = config_path if os.path.exists(config_path) else legacy_config_path
+
+    if os.path.isfile(load_path):
+        with open(load_path, "r", encoding="utf-8") as f:
             user_config = json.load(f)
         # 合并：用户配置覆盖默认
         _deep_merge(config, user_config)
@@ -57,7 +59,7 @@ def load_config(config_path: str = None) -> dict:
 def save_config(config: dict, config_path: str = None):
     """保存配置到 config.json（排除敏感信息）"""
     if config_path is None:
-        config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "config.json")
+        config_path = _default_config_path()
 
     to_save = dict(config)
     # 不保存空密钥到文件
@@ -66,6 +68,7 @@ def save_config(config: dict, config_path: str = None):
         sms["access_key_id"] = ""
         sms["access_key_secret"] = ""
 
+    os.makedirs(os.path.dirname(config_path), exist_ok=True)
     with open(config_path, "w", encoding="utf-8") as f:
         json.dump(to_save, f, ensure_ascii=False, indent=2)
 
@@ -80,3 +83,10 @@ def _deep_merge(base: dict, override: dict):
             _deep_merge(base[key], value)
         else:
             base[key] = value
+
+
+def _default_config_path() -> str:
+    return os.getenv(
+        "CONFIG_PATH",
+        os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "config.json"),
+    )
