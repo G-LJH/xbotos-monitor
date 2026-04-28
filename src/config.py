@@ -12,9 +12,10 @@ DEFAULT_CONFIG = {
     "aliyun_sms": {
         "access_key_id": "",
         "access_key_secret": "",
-        "sign_name": "机器人监控",
-        "template_code": "SMS_XXXXXXX",
-        "phone_numbers": []
+        "sign_name": "银川慧疗互联网医院",
+        "template_code": "SMS_505135345",
+        "region_id": "cn-qingdao",
+        "phone_numbers": ["18045034451"]
     }
 }
 

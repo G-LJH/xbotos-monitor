@@ -2,9 +2,33 @@
 import time
 import threading
 import requests
+import logging
+import os
+from logging.handlers import RotatingFileHandler
 import src.data as data
 from src.config import load_config
 from src.alert import check_and_alert
+
+# 创建日志目录
+LOG_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "logs")
+os.makedirs(LOG_DIR, exist_ok=True)
+
+# 配置日志
+logger = logging.getLogger("monitor")
+logger.setLevel(logging.INFO)
+handler = RotatingFileHandler(
+    os.path.join(LOG_DIR, "monitor.log"),
+    maxBytes=5*1024*1024,  # 5MB
+    backupCount=3,
+    encoding="utf-8"
+)
+handler.setFormatter(logging.Formatter("%(asctime)s - %(levelname)s - %(message)s"))
+logger.addHandler(handler)
+
+# 同时输出到控制台
+console_handler = logging.StreamHandler()
+console_handler.setFormatter(logging.Formatter("%(asctime)s - %(levelname)s - %(message)s"))
+logger.addHandler(console_handler)
 
 _running = False
 _thread = None
@@ -58,7 +82,7 @@ def monitor_loop():
     config = load_config()
     interval = config.get("check_interval", 60)
 
-    print(f"[监控] 引擎启动，检测间隔 {interval} 秒")
+    logger.info(f"监控引擎启动，检测间隔 {interval} 秒")
 
     while _running:
         robots = data.load_robots()
@@ -75,23 +99,26 @@ def monitor_loop():
                 robot["color"] = "secondary"
                 continue
 
-            print(f"[监控] 检测: {robot['name']}...")
+            logger.info(f"检测机器人: {robot['name']}...")
             result = check_single_robot(robot)
 
             if result["success"]:
                 robot["status"] = result["detail"]
                 robot["color"] = "success"
                 robot["consecutive_fail_count"] = 0
+                logger.info(f"{robot['name']}: 在线")
             else:
                 robot["consecutive_fail_count"] = robot.get("consecutive_fail_count", 0) + 1
                 robot["status"] = result["detail"]
                 if robot["consecutive_fail_count"] >= config.get("consecutive_fail_threshold", 3):
                     robot["color"] = "danger"
+                    logger.warning(f"{robot['name']}: 异常 - {result['detail']} (连续失败 {robot['consecutive_fail_count']} 次)")
                 else:
                     robot["color"] = "warning"
+                    logger.warning(f"{robot['name']}: 警告 - {result['detail']} (连续失败 {robot['consecutive_fail_count']} 次)")
                 check_and_alert(robot)
 
-            robot["last_update"] = time.strftime("%H:%M:%S")
+            robot["last_update"] = time.strftime("%Y-%m-%d %H:%M:%S")
 
             # 更新到数据层
             try:
@@ -117,7 +144,7 @@ def monitor_loop():
         # 一轮检测完，休息
         time.sleep(interval)
 
-    print("[监控] 引擎已停止")
+    logger.info("监控引擎已停止")
 
 
 def start_monitor():

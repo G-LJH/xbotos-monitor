@@ -105,6 +105,30 @@ with st.sidebar:
         st.success("✅ 短信配置已保存！")
         st.rerun()
 
+    if st.button("📨 发送测试短信", use_container_width=True):
+        phones = [p.strip() for p in phones_str.split(",") if p.strip()]
+        if not phones:
+            st.error("❌ 请先填写接收号码")
+        elif not ak or not sk:
+            st.error("❌ 请先填写 AccessKey ID 和 Secret")
+        else:
+            st.info(f"🔍 当前配置:")
+            st.code(f"AccessKey ID: {ak}\n签名: {sign}\n模板: {tpl}\n号码: {phones}")
+            
+            from src.alert import send_sms
+            with st.spinner("正在发送测试短信..."):
+                any_sent = False
+                for phone in phones:
+                    ok = send_sms(phone, "测试机器人", 99)
+                    if ok:
+                        any_sent = True
+                if any_sent:
+                    st.success("✅ 测试短信发送成功！请查收")
+                else:
+                    st.error("❌ 短信发送失败")
+                    st.warning("💡 常见原因：\n1. AccessKey Secret 错误（注意大小写和特殊字符）\n2. RAM 用户无短信权限（需要 AliyunDysmsFullAccess）\n3. AccessKey 已被禁用/删除\n4. 阿里云账号未开通短信服务")
+                    st.info("📋 请查看终端窗口获得详细错误信息")
+
 
 # ---- Tab 导航 ----
 tab_names = ["📊 总览", "🔧 管理机器人", "📋 检测历史", "🚨 告警记录"]
@@ -174,7 +198,7 @@ with tabs[0]:
                             data.update_robot(selected_id, {
                                 "status": result["detail"],
                                 "color": "success",
-                                "last_update": time.strftime("%H:%M:%S"),
+                                "last_update": time.strftime("%Y-%m-%d %H:%M:%S"),
                                 "consecutive_fail_count": 0,
                             })
                         else:
@@ -184,7 +208,7 @@ with tabs[0]:
                             data.update_robot(selected_id, {
                                 "status": result["detail"],
                                 "color": color,
-                                "last_update": time.strftime("%H:%M:%S"),
+                                "last_update": time.strftime("%Y-%m-%d %H:%M:%S"),
                                 "consecutive_fail_count": new_fail,
                             })
                         data.add_history(selected_id, selected_name, result["success"], result["detail"], result["elapsed_ms"])
