@@ -8,8 +8,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY src/ ./src/
 COPY app.py .
 
-# 数据目录挂载点
-VOLUME /app/data
+# 数据和日志目录挂载点
+VOLUME ["/app/data", "/app/logs"]
 
 EXPOSE 8501
 

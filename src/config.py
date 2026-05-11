@@ -39,7 +39,7 @@ def load_config(config_path: str = None) -> dict:
         return _config_cache
 
     if config_path is None:
-        config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "config.json")
+        config_path = _default_config_path()
 
     config = copy.deepcopy(DEFAULT_CONFIG)
 
@@ -83,7 +83,7 @@ def load_config(config_path: str = None) -> dict:
 def save_config(config: dict, config_path: str = None):
     """保存配置到 config.json（排除敏感信息）"""
     if config_path is None:
-        config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "config.json")
+        config_path = _default_config_path()
 
     to_save = copy.deepcopy(config)
     # 不保存空密钥到文件
@@ -97,6 +97,7 @@ def save_config(config: dict, config_path: str = None):
         email["username"] = ""
         email["password"] = ""
 
+    os.makedirs(os.path.dirname(config_path), exist_ok=True)
     with open(config_path, "w", encoding="utf-8") as f:
         json.dump(to_save, f, ensure_ascii=False, indent=2)
 
@@ -126,3 +127,10 @@ def _parse_int(value: str | None, default: int) -> int:
         return int(value)
     except (TypeError, ValueError):
         return int(default)
+
+
+def _default_config_path() -> str:
+    return os.getenv(
+        "CONFIG_PATH",
+        os.path.join(os.path.dirname(os.path.dirname(__file__)), "config.json"),
+    )
