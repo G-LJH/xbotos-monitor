@@ -128,14 +128,24 @@ def load_alerts(limit: int = 200) -> list:
     return records[-limit:]
 
 
-def add_alert(robot_id: str, robot_name: str, alert_type: str, message: str, sms_sent: bool = False):
+def add_alert(
+    robot_id: str,
+    robot_name: str,
+    alert_type: str,
+    message: str,
+    sms_sent: bool = False,
+    email_sent: bool = False,
+    channels: list | None = None,
+):
     record = {
         "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "robot_id": robot_id,
         "robot_name": robot_name,
         "type": alert_type,
         "message": message,
-        "sms_sent": sms_sent
+        "sms_sent": sms_sent,
+        "email_sent": email_sent,
+        "channels": channels or []
     }
     p = _path("alerts")
     with _lock:

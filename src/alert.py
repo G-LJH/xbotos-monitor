@@ -4,7 +4,9 @@ import random
 import time
 import logging
 import os
+import smtplib
 from logging.handlers import RotatingFileHandler
+from email.message import EmailMessage
 import src.data as data
 from src.config import load_config
 
@@ -85,6 +87,60 @@ def send_sms(phone_number: str, robot_name: str, fail_count: int) -> bool:
         return False
 
 
+def send_email(robot_name: str, fail_count: int, detail: str = "", robot_id: str = "") -> bool:
+    """发送邮件告警，返回是否成功"""
+    config = load_config()
+    email_cfg = config.get("email", {})
+
+    smtp_host = email_cfg.get("smtp_host", "")
+    smtp_port = int(email_cfg.get("smtp_port", 465))
+    use_ssl = email_cfg.get("use_ssl", True)
+    username = email_cfg.get("username", "")
+    password = email_cfg.get("password", "")
+    from_addr = email_cfg.get("from_addr") or username
+    to_addrs = email_cfg.get("to_addrs", [])
+
+    if not smtp_host or not from_addr or not to_addrs:
+        logger.warning("[告警] 邮件 SMTP、发件人或收件人未配置，跳过邮件发送")
+        return False
+
+    subject = f"机器人告警：{robot_name} 连续失败 {fail_count} 次"
+    body_lines = [
+        "机器人监控系统检测到异常：",
+        "",
+        f"机器人名称：{robot_name}",
+        f"机器人 ID：{robot_id or '-'}",
+        f"连续失败次数：{fail_count}",
+        f"当前状态：{detail or '-'}",
+        f"告警时间：{time.strftime('%Y-%m-%d %H:%M:%S')}",
+    ]
+
+    message = EmailMessage()
+    message["Subject"] = subject
+    message["From"] = from_addr
+    message["To"] = ", ".join(to_addrs)
+    message.set_content("\n".join(body_lines))
+
+    try:
+        logger.info("[邮件] 准备发送到: %s", to_addrs)
+        if use_ssl:
+            with smtplib.SMTP_SSL(smtp_host, smtp_port, timeout=15) as server:
+                if username and password:
+                    server.login(username, password)
+                server.send_message(message)
+        else:
+            with smtplib.SMTP(smtp_host, smtp_port, timeout=15) as server:
+                server.starttls()
+                if username and password:
+                    server.login(username, password)
+                server.send_message(message)
+        logger.info("[邮件] 发送成功")
+        return True
+    except Exception as e:
+        logger.error("[邮件] 发送失败! 异常类型: %s, 异常信息: %s", type(e).__name__, e)
+        return False
+
+
 def check_and_alert(robot: dict):
     """检查是否需要发送告警（连续失败达到阈值时才推送）"""
     config = load_config()
@@ -100,6 +156,21 @@ def check_and_alert(robot: dict):
     if current_time - last_alert < cooldown:
         return
 
+    channels = config.get("alert_channels", ["sms"])
+    channels = [c for c in channels if c in {"sms", "email"}]
+    if not channels:
+        logger.warning("[告警] 未启用任何告警通道，记录但不发送 [%s]", robot.get('name', ''))
+        data.add_alert(
+            robot["id"], robot["name"],
+            "告警(未发送)",
+            f"连续失败 {fail_count} 次，未启用告警通道",
+            sms_sent=False,
+            email_sent=False,
+            channels=[]
+        )
+        robot["last_alert_time"] = current_time
+        return
+
     phones = config.get("aliyun_sms", {}).get("phone_numbers", [])
     sms_cfg = config.get("aliyun_sms", {})
     
@@ -110,31 +181,36 @@ def check_and_alert(robot: dict):
     logger.debug("模板CODE: %s", sms_cfg.get('template_code'))
     logger.debug("接收号码列表: %s", phones)
     
-    if not phones:
-        logger.warning("[告警] 未配置短信号码，跳过 [%s]", robot.get('name', ''))
-        data.add_alert(
-            robot["id"], robot["name"],
-            "告警(未发送)",
-            f"连续失败 {fail_count} 次，未配置短信号码",
-            sms_sent=False
-        )
-        return
-
     logger.warning("[告警] 触发告警: %s 已连续失败 %s 次", robot['name'], fail_count)
 
-    any_sent = False
-    for phone in phones:
-        phone = phone.strip()
-        if phone:
-            logger.info("[短信] 准备发送到: %s", phone)
-            ok = send_sms(phone, robot["name"], fail_count)
-            if ok:
-                any_sent = True
+    sms_sent = False
+    email_sent = False
+
+    if "sms" in channels and not phones:
+        logger.warning("[告警] 未配置短信号码，跳过 [%s]", robot.get('name', ''))
+    elif "sms" in channels:
+        for phone in phones:
+            phone = phone.strip()
+            if phone:
+                logger.info("[短信] 准备发送到: %s", phone)
+                ok = send_sms(phone, robot["name"], fail_count)
+                if ok:
+                    sms_sent = True
+
+    if "email" in channels:
+        email_sent = send_email(
+            robot["name"],
+            fail_count,
+            detail=robot.get("status", ""),
+            robot_id=robot.get("id", "")
+        )
 
     data.add_alert(
         robot["id"], robot["name"],
         "告警",
         f"连续失败 {fail_count} 次",
-        sms_sent=any_sent
+        sms_sent=sms_sent,
+        email_sent=email_sent,
+        channels=channels
     )
     robot["last_alert_time"] = current_time

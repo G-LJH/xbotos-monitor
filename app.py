@@ -52,7 +52,7 @@ with st.sidebar:
         "告警阈值（次）",
         min_value=1, max_value=10,
         value=config.get("consecutive_fail_threshold", 3),
-        help="连续失败多少次后发送短信"
+        help="连续失败多少次后发送提醒"
     )
     new_cooldown = st.number_input(
         "告警冷却（秒）",
@@ -81,6 +81,26 @@ with st.sidebar:
             config["request_timeout"] = new_timeout
             save_config(config)
             st.success("✅ 配置已保存！刷新后生效")
+            st.rerun()
+
+    st.divider()
+
+    # 告警方式
+    st.subheader("🔔 告警方式")
+    channel_labels = {"sms": "短信", "email": "邮件"}
+    selected_labels = st.multiselect(
+        "启用通道",
+        options=list(channel_labels.values()),
+        default=[channel_labels.get(c, c) for c in config.get("alert_channels", ["sms"]) if c in channel_labels],
+        help="可同时启用短信和邮件；不选择则只记录告警不发送"
+    )
+    selected_channels = [key for key, label in channel_labels.items() if label in selected_labels]
+
+    if selected_channels != config.get("alert_channels", ["sms"]):
+        if st.button("💾 保存告警方式", use_container_width=True):
+            config["alert_channels"] = selected_channels
+            save_config(config)
+            st.success("✅ 告警方式已保存！")
             st.rerun()
 
     st.divider()
@@ -132,6 +152,64 @@ with st.sidebar:
                     st.error("❌ 短信发送失败")
                     st.warning("💡 常见原因：\n1. AccessKey Secret 错误（注意大小写和特殊字符）\n2. RAM 用户无短信权限（需要 AliyunDysmsFullAccess）\n3. AccessKey 已被禁用/删除\n4. 阿里云账号未开通短信服务")
                     st.info("📋 请查看终端窗口获得详细错误信息")
+
+    st.divider()
+
+    # 邮件配置
+    st.subheader("📧 邮件提醒")
+    email_cfg = config.get("email", {})
+
+    smtp_host = st.text_input("SMTP 服务器", value=email_cfg.get("smtp_host", ""))
+    smtp_port = st.number_input(
+        "SMTP 端口",
+        min_value=1,
+        max_value=65535,
+        value=int(email_cfg.get("smtp_port", 465))
+    )
+    use_ssl = st.checkbox("使用 SSL", value=email_cfg.get("use_ssl", True))
+    email_username = st.text_input("邮箱账号", value=email_cfg.get("username", ""))
+    email_password = st.text_input("邮箱密码/授权码", value=email_cfg.get("password", ""), type="password")
+    from_addr = st.text_input("发件人邮箱", value=email_cfg.get("from_addr", ""))
+    to_addrs_str = st.text_input(
+        "收件人邮箱（逗号分隔）",
+        value=",".join(email_cfg.get("to_addrs", []))
+    )
+
+    if st.button("💾 保存邮件配置", use_container_width=True):
+        email_cfg["smtp_host"] = smtp_host
+        email_cfg["smtp_port"] = int(smtp_port)
+        email_cfg["use_ssl"] = use_ssl
+        email_cfg["username"] = email_username
+        email_cfg["password"] = email_password
+        email_cfg["from_addr"] = from_addr
+        email_cfg["to_addrs"] = [p.strip() for p in to_addrs_str.split(",") if p.strip()]
+        config["email"] = email_cfg
+        save_config(config)
+        st.success("✅ 邮件配置已保存！")
+        st.rerun()
+
+    if st.button("📨 发送测试邮件", use_container_width=True):
+        to_addrs = [p.strip() for p in to_addrs_str.split(",") if p.strip()]
+        if not smtp_host or not to_addrs:
+            st.error("❌ 请先填写 SMTP 服务器和收件人邮箱")
+        else:
+            email_cfg["smtp_host"] = smtp_host
+            email_cfg["smtp_port"] = int(smtp_port)
+            email_cfg["use_ssl"] = use_ssl
+            email_cfg["username"] = email_username
+            email_cfg["password"] = email_password
+            email_cfg["from_addr"] = from_addr
+            email_cfg["to_addrs"] = to_addrs
+            config["email"] = email_cfg
+            save_config(config)
+
+            from src.alert import send_email
+            with st.spinner("正在发送测试邮件..."):
+                ok = send_email("测试机器人", 99, detail="测试邮件提醒", robot_id="test")
+                if ok:
+                    st.success("✅ 测试邮件发送成功！请查收")
+                else:
+                    st.error("❌ 邮件发送失败，请查看终端或 logs/alert.log")
 
 
 # ---- Tab 导航 ----
@@ -382,6 +460,9 @@ with tabs[3]:
         df = pd.DataFrame(alerts)
         df = df.sort_values("time", ascending=False)
         df["短信"] = df["sms_sent"].apply(lambda x: "✅ 已发送" if x else "❌ 未发送")
-        df = df[["time", "robot_name", "type", "message", "短信"]]
-        df.columns = ["时间", "机器人", "类型", "详情", "短信"]
+        if "email_sent" not in df.columns:
+            df["email_sent"] = False
+        df["邮件"] = df["email_sent"].apply(lambda x: "✅ 已发送" if x else "❌ 未发送")
+        df = df[["time", "robot_name", "type", "message", "短信", "邮件"]]
+        df.columns = ["时间", "机器人", "类型", "详情", "短信", "邮件"]
         st.dataframe(df, use_container_width=True, hide_index=True, height=600)
