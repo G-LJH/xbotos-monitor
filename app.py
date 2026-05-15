@@ -2,6 +2,7 @@
 import os
 import streamlit as st
 import time
+import hmac
 import src.data as data
 from src.config import load_config, save_config
 from src.monitor import start_monitor, stop_monitor, is_running, check_single_robot
@@ -17,9 +18,125 @@ if os.getenv("MONITOR_AUTO_START", "").lower() in {"1", "true", "yes", "on"} and
     start_monitor()
 
 
+def _check_login(username: str, password: str) -> bool:
+    expected_username = os.getenv("LOGIN_USERNAME", "admin")
+    expected_password = os.getenv("LOGIN_PASSWORD", "admin123")
+    return hmac.compare_digest(username, expected_username) and hmac.compare_digest(password, expected_password)
+
+
+def require_login():
+    if st.session_state.get("authenticated"):
+        return
+
+    st.markdown(
+        """
+        <style>
+        [data-testid="stSidebar"] {
+            display: none;
+        }
+        [data-testid="stAppViewContainer"] {
+            background:
+                radial-gradient(circle at 20% 20%, rgba(56, 189, 248, 0.16), transparent 28rem),
+                radial-gradient(circle at 85% 10%, rgba(34, 197, 94, 0.12), transparent 24rem),
+                linear-gradient(135deg, #0f172a 0%, #111827 48%, #18212f 100%);
+        }
+        [data-testid="stHeader"] {
+            background: transparent;
+        }
+        .block-container {
+            max-width: 480px;
+            padding-top: 14vh;
+        }
+        .login-card {
+            padding: 2.25rem 2.25rem 1.75rem;
+            border: 1px solid rgba(148, 163, 184, 0.24);
+            border-radius: 16px;
+            background: rgba(15, 23, 42, 0.84);
+            box-shadow: 0 24px 80px rgba(0, 0, 0, 0.35);
+            backdrop-filter: blur(14px);
+        }
+        .login-title {
+            margin: 0;
+            color: #f8fafc;
+            font-size: 2rem;
+            font-weight: 700;
+            letter-spacing: 0;
+        }
+        .login-subtitle {
+            margin: 0.55rem 0 1.35rem;
+            color: #cbd5e1;
+            font-size: 0.98rem;
+            line-height: 1.65;
+        }
+        .login-meta {
+            margin-top: 1rem;
+            color: #94a3b8;
+            font-size: 0.84rem;
+            text-align: center;
+        }
+        div[data-testid="stTextInput"] label {
+            color: #e2e8f0;
+            font-weight: 600;
+        }
+        div[data-testid="stTextInput"] input {
+            border-color: rgba(148, 163, 184, 0.35);
+            background: rgba(2, 6, 23, 0.7);
+            color: #f8fafc;
+        }
+        div[data-testid="stFormSubmitButton"] button {
+            margin-top: 0.5rem;
+            border: 0;
+            background: linear-gradient(135deg, #2563eb, #0891b2);
+            color: white;
+            font-weight: 700;
+        }
+        div[data-testid="stFormSubmitButton"] button:hover {
+            border: 0;
+            color: white;
+            filter: brightness(1.08);
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    st.markdown(
+        """
+        <div class="login-card">
+            <h1 class="login-title">机器人监控系统</h1>
+            <p class="login-subtitle">登录后查看机器人状态、告警记录和通知配置。</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    with st.form("login_form"):
+        username = st.text_input("账号")
+        password = st.text_input("密码", type="password")
+        submitted = st.form_submit_button("登录", use_container_width=True)
+
+    if submitted:
+        if _check_login(username, password):
+            st.session_state["authenticated"] = True
+            st.rerun()
+        else:
+            st.error("账号或密码错误")
+
+    st.markdown('<div class="login-meta">xbotos monitor</div>', unsafe_allow_html=True)
+    st.stop()
+
+
+require_login()
+
+
 # ---- 侧边栏 ----
 with st.sidebar:
     st.title("⚙️ 控制面板")
+    if st.button("退出登录", use_container_width=True):
+        st.session_state["authenticated"] = False
+        st.rerun()
+
+    st.divider()
 
     # 监控开关
     running = is_running()

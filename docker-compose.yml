@@ -1,7 +1,7 @@
 services:
   robot-monitor:
     build: .
-    container_name: robot-monitor
+    container_name: Robot-monitor
     restart: unless-stopped
     ports:
       - "8501:8501"
@@ -28,3 +28,6 @@ services:
       - EMAIL_PASSWORD=${EMAIL_PASSWORD:-}
       - EMAIL_FROM=${EMAIL_FROM:-}
       - EMAIL_TO=${EMAIL_TO:-}
+      # Web 登录账号密码
+      - LOGIN_USERNAME=${LOGIN_USERNAME:-admin}
+      - LOGIN_PASSWORD=${LOGIN_PASSWORD:-admin123}
